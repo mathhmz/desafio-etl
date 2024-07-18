@@ -16,12 +16,12 @@ class ProposicoesService:
         self.year = year
         self.ordenate = ordenate
         
-    def __build_endpoint(self, page:str):
+    def __build_endpoint(self, page:str) -> str:
         
         return f"{self.base_url}?tp={self.results_per_page}&formato={self.format}&ano={self.year}&ord={self.ordenate}?p{page}"
 
     
-    def request_data(self):
+    def request_data(self) -> list[dict]:
         
         page_index = 1
         data = []
@@ -34,7 +34,7 @@ class ProposicoesService:
             
             data.append(json_response)
             
-    def __call__(self):
+    def __call__(self)-> list[dict]:
         return self.request_data()
         
     
