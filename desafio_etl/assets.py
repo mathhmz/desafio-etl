@@ -4,6 +4,9 @@ from .core.services.proposicoes_service import ProposicoesService
 from .utils.dataframe_normalize import df_normalizer
 import json
 import pandas as pd
+import io
+
+
 
 @asset(io_manager_key="io_manager")
 def proposicoes_raw(context: AssetExecutionContext):
@@ -17,7 +20,7 @@ def proposicoes_raw(context: AssetExecutionContext):
         "num_rows": len(raw)
     })
 
-@asset
+@asset(io_manager_key="io_manager")
 def tramitacoes_raw(context: AssetExecutionContext, proposicoes_raw):
     
     data = json.loads(proposicoes_raw)
@@ -46,7 +49,7 @@ def tramitacoes_raw(context: AssetExecutionContext, proposicoes_raw):
     })
     
     
-@asset
+@asset(io_manager_key="io_manager")
 def tramitacoes_digest(context: AssetExecutionContext, tramitacoes_raw):
     
     data = json.loads(tramitacoes_raw)
@@ -57,18 +60,22 @@ def tramitacoes_digest(context: AssetExecutionContext, tramitacoes_raw):
 }
     df = pd.DataFrame(data).rename(columns=columns)
     context.log.info(df.info(verbose=True))
+    
 
-    return Output(value= df, metadata={
+
+    return Output(value= df.to_parquet(), metadata={
         "num_rows": len(df),
         "preview": MetadataValue.md(df.head(10).to_markdown())
     })
     
-@asset
+@asset(io_manager_key="silver_io_manager")
 def tramitacoes_silver(context: AssetExecutionContext, tramitacoes_digest):
-    tramitacoes_digest['number'] = tramitacoes_digest['number'].astype(str)
-    tramitacoes_digest['createdAt'] = pd.to_datetime(tramitacoes_digest['createdAt']).dt.strftime('%Y-%m-%dT%H:%M:%SZ')
-    df = df_normalizer(tramitacoes_digest)
-    return Output(value= df.to_parquet(), metadata={
+    pq_file = io.BytesIO(tramitacoes_digest)
+    df = pd.read_parquet(pq_file)
+    df['number'] = df['number'].astype(str)
+    df['createdAt'] = pd.to_datetime(df['createdAt']).dt.strftime('%Y-%m-%dT%H:%M:%SZ')
+    df = df_normalizer(df)
+    return Output(value= df, metadata={
         "num_rows": len(df),
         "preview": MetadataValue.md(df.head(10).to_markdown())
     })
@@ -96,35 +103,37 @@ def proposicoes_digest(context: AssetExecutionContext, proposicoes_raw):
     
 
     lista_itens_filtrada = [{k: v for k, v in item.items() if k in columns} for item in lista_itens]
-
     df = pd.DataFrame(lista_itens_filtrada).rename(columns=columns)
     df['city'] = 'Belo Horizonte'
     df['state'] = 'Minas Gerais'
     context.log.info(df.info(verbose=True))
 
-    return Output(value= df, metadata={
+    return Output(value= df.to_parquet(), metadata={
         "num_rows": len(df),
         "preview": MetadataValue.md(df.head(10).to_markdown())
     })
     
-@asset
+@asset(io_manager_key="silver_io_manager")
 def proposicoes_silver(context: AssetExecutionContext, proposicoes_digest):
+    pq_file = io.BytesIO(proposicoes_digest)
+    df = pd.read_parquet(pq_file)
+
     
-    proposicoes_digest['presentationDate'] = pd.to_datetime(proposicoes_digest['presentationDate']).dt.strftime('%Y-%m-%dT%H:%M:%SZ')
+    df['presentationDate'] = pd.to_datetime(df['presentationDate']).dt.strftime('%Y-%m-%dT%H:%M:%SZ')
     
-    proposicoes_digest['number'] = proposicoes_digest['number'].astype(str)
+    df['number'] = df['number'].astype(str)
     
-    proposicoes_digest['year'] = proposicoes_digest['year'].astype(int)
+    df['year'] = df['year'].astype(int)
     
     #Preenchendo os valores nulos, pois a ementa não é presente em todas as proposições.
     #Como em outros campos desses dados, preencho os valores nulos com uma string vazia;
-    proposicoes_digest['ementa'] = proposicoes_digest['ementa'].fillna(value="")
+    df['ementa'] = df['ementa'].fillna(value="")
     
-    context.log.info(proposicoes_digest.info(verbose=True))
+    context.log.info(df.info(verbose=True))
     
-    df = df_normalizer(proposicoes_digest)
+    df = df_normalizer(df)
     
-    return Output(value= df.to_parquet(), metadata={
+    return Output(value= df, metadata={
         "num_rows": len(df),
         "preview": MetadataValue.md(df.head(10).to_markdown())
     })
