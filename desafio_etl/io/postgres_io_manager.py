@@ -7,7 +7,7 @@ from dagster import (
     StringSource
 )
 import pandas as pd
-from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, DateTime
+from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, DateTime, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from dotenv import load_dotenv
@@ -18,7 +18,7 @@ load_dotenv()
 Base = declarative_base()
 
 class Proposicao(Base):
-    __tablename__ = 'proposicao'
+    __tablename__ = 'proposicoes_silver'
     id = Column(Integer, primary_key=True, autoincrement=True)
     author = Column(String)
     presentationDate = Column(DateTime)
@@ -32,12 +32,11 @@ class Proposicao(Base):
     state = Column(String, default="Minas Gerais")
 
 class Tramitacao(Base):
-    __tablename__ = 'tramitacao'
+    __tablename__ = 'tramitacoes_silver'
     id = Column(Integer, primary_key=True, autoincrement=True)
     createdAt = Column(DateTime)
     description = Column(String)
     local = Column(String)
-    propositionId = Column(Integer, ForeignKey('proposicao.id'))
 
 class PostgresPandasIOManager(IOManager):
     def __init__(self, user: str, password: str, host: str, database: str, port: str) -> None:
@@ -54,13 +53,23 @@ class PostgresPandasIOManager(IOManager):
 
         table_name = context.asset_key.to_python_identifier()
 
-        # Ensuring table creation
-        if table_name == 'proposicao':
-            Base.metadata.tables['proposicao'].create(self.engine, checkfirst=True)
-        elif table_name == 'tramitacao':
-            Base.metadata.tables['tramitacao'].create(self.engine, checkfirst=True)
+        if table_name == 'proposicoes_silver':
+            Base.metadata.tables['proposicoes_silver'].create(self.engine, checkfirst=True)
+        elif table_name == 'tramitacoes_silver':
+            Base.metadata.tables['tramitacoes_silver'].create(self.engine, checkfirst=True)
 
         obj.to_sql(table_name, self.engine, if_exists='replace', index=False)
+        with self.engine.connect() as conn:
+            if table_name == 'proposicoes_silver':
+                conn.execute(text("ALTER TABLE proposicoes_silver  ADD COLUMN id BIGSERIAL PRIMARY KEY;"))
+                conn.commit()
+            elif table_name == 'tramitacoes_silver':
+                conn.execute(text("ALTER TABLE tramitacoes_silver ADD COLUMN propositionID bigint;"))
+                conn.commit()
+                conn.execute(text("UPDATE tramitacoes_silver ts SET propositionID = ps.id FROM proposicoes_silver ps WHERE ts.number = ps.number;"))
+                conn.commit()
+                conn.execute(text("ALTER TABLE tramitacoes_silver ADD CONSTRAINT fk_propositionID FOREIGN KEY (propositionID) REFERENCES proposicoes_silver(id)"))
+                conn.commit()
         context.add_output_metadata({"db": self.database, "table_name": table_name})
 
     def load_input(self, context: InputContext):
