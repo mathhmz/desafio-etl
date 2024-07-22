@@ -2,12 +2,13 @@ from typing import Any
 from dagster import (AssetExecutionContext, asset, Output, MetadataValue, AssetCheckResult)
 from .core.services.proposicoes_service import ProposicoesService
 from .utils.dataframe_normalize import df_normalizer
+from .utils.hash_code_checker import HashCodeChecker
 import json
 import pandas as pd
 import io
 
-@asset(io_manager_key="io_manager")
-def proposicoes_raw(context: AssetExecutionContext) -> Output:
+@asset(io_manager_key="io_manager", output_required=False)
+def proposicoes_raw(context: AssetExecutionContext):
     """
     Coleta dados brutos de proposições e os retorna como JSON.
     """
@@ -17,14 +18,23 @@ def proposicoes_raw(context: AssetExecutionContext) -> Output:
     data = service_request()
     raw = json.dumps(data, indent=2)
     
+    hash_code_checking = HashCodeChecker(asset="proposicoes_raw", context= context, input= raw)
+    is_file_updated = hash_code_checking()
+    
     context.log.info(f"Dados brutos coletados: {len(data)} itens.")
     
+    if is_file_updated:
+        context.log.info("Dados atualizados.")
+        return None
+    
     return Output(value=raw, metadata={
-        "num_rows": len(data)
+        "num_rows": len(data),
+        "hash_code": hash_code_checking.generate_hash()
     })
+    
 
 @asset
-def proposicoes_bronze(context: AssetExecutionContext, proposicoes_raw: str) -> Output:
+def proposicoes_bronze(context: AssetExecutionContext, proposicoes_raw) -> Output:
     """
     Processa os dados brutos de proposições e os converte em formato de DataFrame.
     """
@@ -63,7 +73,7 @@ def proposicoes_bronze(context: AssetExecutionContext, proposicoes_raw: str) -> 
     })
 
 @asset
-def tramitacoes_bronze(context: AssetExecutionContext, proposicoes_bronze: str) -> Output:
+def tramitacoes_bronze(context: AssetExecutionContext, proposicoes_bronze) -> Output:
     """
     Extrai e processa os dados de tramitações a partir dos dados de proposições.
     """
@@ -191,98 +201,4 @@ def proposicoes_silver(context: AssetExecutionContext, proposicoes_digest: bytes
         "preview": MetadataValue.md(df.head(10).to_markdown())
     })
 
-@asset(checks=[AssetCheckResult(
-    name="check_proposicoes_raw",
-    description="Verifica se o número de itens em proposicoes_raw é maior que 0.",
-    check=lambda context, value: len(json.loads(value)) > 0
-)])
-def check_proposicoes_raw(context: AssetExecutionContext, proposicoes_raw: str) -> AssetCheckResult:
-    """
-    Verifica a integridade dos dados brutos de proposições.
-    """
-    data = json.loads(proposicoes_raw)
-    if len(data) > 0:
-        return AssetCheckResult.passed()
-    return AssetCheckResult.failed(message="proposicoes_raw não contém dados.")
 
-@asset(checks=[AssetCheckResult(
-    name="check_proposicoes_bronze",
-    description="Verifica se o DataFrame de proposicoes_bronze possui linhas e não contém nulos essenciais após o processamento.",
-    check=lambda context, value: check_dataframe_integrity(pd.read_json(value))
-)])
-def check_proposicoes_bronze(context: AssetExecutionContext, proposicoes_bronze: str) -> AssetCheckResult:
-    """
-    Verifica a integridade dos dados processados de proposições.
-    """
-    df = pd.read_json(proposicoes_bronze)
-    if check_dataframe_integrity(df):
-        return AssetCheckResult.passed()
-    return AssetCheckResult.failed(message="proposicoes_bronze contém dados inválidos ou nulos.")
-
-@asset(checks=[AssetCheckResult(
-    name="check_tramitacoes_bronze",
-    description="Verifica se o DataFrame de tramitacoes_bronze possui linhas e não contém nulos essenciais após o processamento.",
-    check=lambda context, value: check_dataframe_integrity(pd.read_json(value))
-)])
-def check_tramitacoes_bronze(context: AssetExecutionContext, tramitacoes_bronze: str) -> AssetCheckResult:
-    """
-    Verifica a integridade dos dados de tramitações processados.
-    """
-    df = pd.read_json(tramitacoes_bronze)
-    if check_dataframe_integrity(df):
-        return AssetCheckResult.passed()
-    return AssetCheckResult.failed(message="tramitacoes_bronze contém dados inválidos ou nulos.")
-
-@asset(checks=[AssetCheckResult(
-    name="check_proposicoes_digest",
-    description="Verifica se o DataFrame de proposicoes_digest possui linhas e não contém nulos essenciais após o processamento.",
-    check=lambda context, value: check_dataframe_integrity(pd.read_parquet(io.BytesIO(value)))
-)])
-def check_proposicoes_digest(context: AssetExecutionContext, proposicoes_digest: bytes) -> AssetCheckResult:
-    """
-    Verifica a integridade dos dados de proposições processados.
-    """
-    df = pd.read_parquet(io.BytesIO(proposicoes_digest))
-    if check_dataframe_integrity(df):
-        return AssetCheckResult.passed()
-    return AssetCheckResult.failed(message="proposicoes_digest contém dados inválidos ou nulos.")
-
-@asset(checks=[AssetCheckResult(
-    name="check_tramitacoes_digest",
-    description="Verifica se o DataFrame de tramitacoes_digest possui linhas e não contém nulos essenciais após o processamento.",
-    check=lambda context, value: check_dataframe_integrity(pd.read_parquet(io.BytesIO(value)))
-)])
-def check_tramitacoes_digest(context: AssetExecutionContext, tramitacoes_digest: bytes) -> AssetCheckResult:
-    """
-    Verifica a integridade dos dados de tramitações processados.
-    """
-    df = pd.read_parquet(io.BytesIO(tramitacoes_digest))
-    if check_dataframe_integrity(df):
-        return AssetCheckResult.passed()
-    return AssetCheckResult.failed(message="tramitacoes_digest contém dados inválidos ou nulos.")
-
-
-def check_dataframe_integrity(df: pd.DataFrame) -> bool:
-    """
-    Verifica a integridade do DataFrame, garantindo que não contenha valores nulos
-    nas colunas essenciais e que tenha pelo menos uma linha de dados.
-
-    Args:
-        df (pd.DataFrame): O DataFrame a ser verificado.
-
-    Returns:
-        bool: Retorna True se o DataFrame for considerado íntegro, caso contrário, False.
-    """
-    if df.empty:
-        return False
-    
-    essential_columns = ['id', 'number', 'author', 'year', 'presentationDate', 'ementa', 'regime', 'situation', 'propositionType']
-    missing_columns = [col for col in essential_columns if col not in df.columns]
-    if missing_columns:
-        return False
-    
-    for col in essential_columns:
-        if df[col].isnull().any():
-            return False
-    
-    return True

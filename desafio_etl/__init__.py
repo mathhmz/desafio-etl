@@ -1,12 +1,13 @@
-from dagster import AssetSelection, Definitions, ScheduleDefinition, define_asset_job, load_assets_from_modules
+from dagster import AssetSelection, Definitions, ScheduleDefinition, asset_check, define_asset_job, load_assets_from_modules
 
 from . import assets
+from . import asset_checks
 from .io.postgres_io_manager import postgres_pandas_io_manager
-
 all_assets = load_assets_from_modules([assets])
 
+all_asset_checks = [asset_checks.check_proposicoes_raw_data_format]
 
-etl_job = define_asset_job("ETL de Proposições Legislativas JOB", selection=AssetSelection.all())
+etl_job = define_asset_job("etl_job", selection=AssetSelection.all())
 
 
 
@@ -25,7 +26,9 @@ defs = Definitions(
     assets=all_assets,
     resources={
         "silver_io_manager": silver_io_manager },
-    jobs= [etl_job]
+    jobs= [etl_job],
+    asset_checks=all_asset_checks,
+    
 )
 
 etl_schedule = ScheduleDefinition(
