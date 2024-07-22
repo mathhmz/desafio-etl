@@ -33,7 +33,7 @@ Certifique-se de ter o Docker e o Docker Compose instalados em sua máquina.
 
 1. **Clonar o Repositório**: Clone este repositório para o seu ambiente local.
    ```bash
-   git clone https://github.com/seu_usuario/desafio_etl.git
+   git clone https://github.com/mathhmz/desafio-etl
    cd desafio_etl
    ```
 
