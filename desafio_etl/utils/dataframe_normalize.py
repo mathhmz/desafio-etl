@@ -1,11 +1,14 @@
-#Criando uma função que remove os espaços em branco e busca eliminar qualquer outro caracter especial ou regex que possa causar conflito;
 import re
-def df_normalizer(df):
+import pandas as pd
+
+def df_normalizer(df: pd.DataFrame) -> pd.DataFrame:
     for col in df.select_dtypes(include=['object']).columns:
         # Remover espaços em branco do início e fim
         df[col] = df[col].str.strip()
         # Remover múltiplos espaços em branco
         df[col] = df[col].str.replace(r'\s+', ' ', regex=True)
-        # Remover qualquer outra expressão regular indesejada
+        # Remover caracteres especiais, mantendo letras, números e espaços
         df[col] = df[col].str.replace(r'[^\w\s,.-]', '', regex=True)
+        # Opcional: remover espaços extras dentro de palavras
+        df[col] = df[col].str.replace(r'\s+', ' ', regex=True)
     return df
