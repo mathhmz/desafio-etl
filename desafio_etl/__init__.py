@@ -5,7 +5,7 @@ from . import asset_checks
 from .io.postgres_io_manager import postgres_pandas_io_manager
 all_assets = load_assets_from_modules([assets])
 
-all_asset_checks = [asset_checks.check_proposicoes_raw_data_format]
+all_asset_checks = [asset_checks.check_proposicoes_bronze_data_format, asset_checks.check_proposicoes_digest_format, asset_checks.check_proposicoes_raw_data_format, asset_checks.check_proposicoes_silver_format, asset_checks.check_tramitacoes_bronze_data_format, asset_checks.check_tramitacoes_digest_format, asset_checks.check_tramitacoes_silver_format]
 
 etl_job = define_asset_job("etl_job", selection=AssetSelection.all())
 
