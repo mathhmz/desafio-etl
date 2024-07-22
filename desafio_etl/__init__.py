@@ -1,9 +1,13 @@
-from dagster import Definitions, load_assets_from_modules
+from dagster import AssetSelection, Definitions, ScheduleDefinition, define_asset_job, load_assets_from_modules
 
 from . import assets
 from .io.postgres_io_manager import postgres_pandas_io_manager
 
 all_assets = load_assets_from_modules([assets])
+
+
+etl_job = define_asset_job("ETL de Proposições Legislativas JOB", selection=AssetSelection.all())
+
 
 
 
@@ -20,5 +24,11 @@ silver_io_manager = postgres_pandas_io_manager.configured(
 defs = Definitions(
     assets=all_assets,
     resources={
-        "silver_io_manager": silver_io_manager }
+        "silver_io_manager": silver_io_manager },
+    jobs= [etl_job]
+)
+
+etl_schedule = ScheduleDefinition(
+    job=etl_job,
+    cron_schedule="0 3 * * *",  # every day at 3 AM
 )
