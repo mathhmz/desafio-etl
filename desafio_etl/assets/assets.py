@@ -1,8 +1,8 @@
 from typing import Any
 from dagster import (AssetExecutionContext, asset, Output, MetadataValue, AssetCheckResult)
-from .core.services.proposicoes_service import ProposicoesService
-from .utils.dataframe_normalize import df_normalizer
-from .utils.hash_code_checker import HashCodeChecker
+from ..services.proposicoes_service import ProposicoesService
+from ..utils.dataframe_normalize import df_normalizer
+from ..utils.hash_code_checker import HashCodeChecker
 import json
 import pandas as pd
 import io

@@ -67,7 +67,7 @@ class ProposicoesService:
 
         total_pages = (ocurrency_number // self.results_per_page) + (1 if ocurrency_number % self.results_per_page else 0)
 
-        while page_index <= 1:
+        while page_index <= total_pages:
             response = requests.get(self.__build_endpoint(page_index))
             response.raise_for_status()  # Levanta uma exceção para respostas com erro
             data.append(response.json())

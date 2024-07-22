@@ -3,7 +3,7 @@ import json
 from dagster import AssetCheckResult, asset_check
 import pandas as pd
 
-from desafio_etl.assets import proposicoes_bronze, proposicoes_digest, proposicoes_raw, proposicoes_silver, tramitacoes_bronze, tramitacoes_digest, tramitacoes_silver
+from desafio_etl.assets.assets import proposicoes_bronze, proposicoes_digest, proposicoes_raw, proposicoes_silver, tramitacoes_bronze, tramitacoes_digest, tramitacoes_silver
 
 
 @asset_check(asset=proposicoes_raw)

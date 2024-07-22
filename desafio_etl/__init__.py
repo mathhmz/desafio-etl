@@ -1,7 +1,7 @@
 from dagster import AssetSelection, Definitions, ScheduleDefinition, asset_check, define_asset_job, load_assets_from_modules
 
-from . import assets
-from . import asset_checks
+from .assets import assets
+from .assets import asset_checks
 from .io.postgres_io_manager import postgres_pandas_io_manager
 all_assets = load_assets_from_modules([assets])
 
