@@ -41,7 +41,7 @@ Certifique-se de ter o Docker e o Docker Compose instalados em sua máquina.
 
 3. **Iniciar os Contêineres**: Navegue até o diretório principal do projeto e execute o seguinte comando para iniciar os contêineres:
    ```bash
-   docker-compose up --build
+   docker compose up --build
    ```
 
 4. **Configuração Adicional do Ambiente de Desenvolvimento**:
