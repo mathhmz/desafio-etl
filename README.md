@@ -1,81 +1,62 @@
-# Desafio de Engenharia de Dados | ETL de Proposições Legislativas
+# Desafio_ETL
 
-Olá, candidato! Bem-vindo ao nosso desafio de engenharia de dados, que visa avaliar sua habilidade em manipular e processar dados de uma API e gerenciar um banco de dados de forma eficaz.
+Bem-vindo ao repositório do Desafio_ETL! 🚀
 
-## 🚀 Objetivo:
+Este projeto faz parte do Desafio de Engenharia de Dados para extração, transformação e carregamento de dados de proposições legislativas do estado de Minas Gerais. Utilizamos uma combinação de ferramentas, incluindo Dagster, PostgreSQL e pgAdmin, todas containerizadas para garantir um ambiente de desenvolvimento robusto e portável.
 
-Desenvolver um pipeline de dados em Python para extrair informações sobre proposições legislativas do estado de Minas Gerais para o ano de 2023, realizar a limpeza necessária dos dados e carregá-los em um esquema de banco de dados relacional.
+## Visão Geral
 
-## 💻 Tecnologias:
+O objetivo deste projeto é criar um pipeline de dados para extrair informações sobre proposições legislativas de 2023, realizar a limpeza dos dados e carregá-los em um banco de dados relacional. A arquitetura utiliza Docker Compose para orquestração dos contêineres.
 
-- Python
-- Qualquer banco de dados relacional (PostgreSQL, MySQL, etc.)
-- Docker
+## Ferramentas Utilizadas
 
-## 📜 Requisitos do Projeto:
+- **Dagster**: Orquestração de fluxos de dados.
+- **PostgreSQL**: Armazenamento de dados estruturados.
+- **pgAdmin**: Interface de gerenciamento do PostgreSQL.
+- **Docker**: Containerização da aplicação e dos serviços.
 
-### 1. Extração de Dados:
+## Estrutura do Diretório
 
-- Acesse os dados por meio do endpoint da API: `https://dadosabertos.almg.gov.br/ws/proposicoes/pesquisa/direcionada?tp=1000&formato=json&ano=2023&ord=3`.
-- Consulte a [documentação](http://dadosabertos.almg.gov.br/ws/proposicoes/ajuda#Pesquisa%20Direcionada%20%C3%A0s%20Proposi%C3%A7%C3%B5es%20em%20Tramita%C3%A7%C3%A3o) da API para compreender os parâmetros e a estrutura dos dados disponíveis.
+- **desafio_etl**: Módulo principal com os arquivos responsáveis pelo pipeline de dados.
+- **notebooks**: Histórico de exploração dos dados.
+- **requirements.txt**: Arquivo de dependências do pip.
+- **docker-compose.yml**: Arquivo de configuração do Docker Compose.
+- **README.md**: Este arquivo.
 
-### 2. Limpeza de Dados:
+## Configuração do Ambiente
 
-- Remova espaçamentos desnecessários, caracteres especiais como "\n", e ajuste os formatos de data e texto conforme necessário.
+### Pré-requisitos
 
-### 3. Carregamento de Dados:
+Certifique-se de ter o Docker e o Docker Compose instalados em sua máquina.
 
-- Carregue os dados limpos em um banco de dados relacional seguindo o esquema abaixo.
+### Passos para Configuração
 
-### 4. Dockerização:
+1. **Clonar o Repositório**: Clone este repositório para o seu ambiente local.
+   ```bash
+   git clone https://github.com/seu_usuario/desafio_etl.git
+   cd desafio_etl
+   ```
 
-- Dockerize a aplicação e o banco de dados para garantir a portabilidade e fácil configuração do ambiente de desenvolvimento e produção.
+2. **Configurar Variáveis de Ambiente**: Renomeie o arquivo `.env.example` para `.env` e configure as variáveis de ambiente necessárias, como informações do banco de dados PostgreSQL.
 
-## Esquema de Banco de Dados:
+3. **Iniciar os Contêineres**: Navegue até o diretório principal do projeto e execute o seguinte comando para iniciar os contêineres:
+   ```bash
+   docker-compose up --build
+   ```
 
-### Tabela: Proposição
-| Campo            | Tipo      | Descrição                                                                                         |
-|------------------|-----------|---------------------------------------------------------------------------------------------------|
-| id               | Incremental| ID automático                                                                                    |
-| author           | String    | Autor da proposição, ex. "Governador Romeu Zema Neto"                                             |
-| presentationDate | Timestamp | Data de apresentação da proposição, ex. "2022-10-06T00:00:00Z"                                    |
-| ementa           | String    | Assunto da proposição, ex. "Encaminha o Projeto de Lei 4008 2022..."                              |
-| regime           | String    | Regime de tramitação da proposição, ex. "Especial"                                                |
-| situation        | String    | Situação atual da proposição, ex. "Publicado"                                                     |
-| propositionType  | String    | Tipo da proposição, ex. "MSG"                                                                     |
-| number           | String    | Número da proposição, ex. "300"                                                                   |
-| year             | Integer   | Ano da proposição, ex. 2022                                                                       |
-| city             | String    | Cidade fixa "Belo Horizonte"                                                                      |
-| state            | String    | Estado fixo "Minas Gerais"                                                                        |
+4. **Configuração Adicional do Ambiente de Desenvolvimento**:
+   - Instale as dependências Python:
+     ```bash
+     pip install -r requirements.txt
+     ```
+   - Execute o Dagster em modo de desenvolvimento:
+     ```bash
+     dagster dev -m desafio_etl
+     ```
 
-### Tabela: Tramitação
-| Campo            | Tipo         | Descrição                                                                                         |
-|------------------|--------------|---------------------------------------------------------------------------------------------------|
-| id               | Incremental  | ID automático                                                                                     |
-| createdAt        | Timestamp    | Data do registro da tramitação, ex. "2022-10-04T00:00:00Z"                                        |
-| description      | String       | Descrição do histórico da tramitação, ex. "Proposição lida em Plenário.\nPublicada no DL..."      |
-| local            | String       | Local da tramitação, ex. "Plenário"                                                               |
-| propositionId    | ForeignKey   | Chave estrangeira que referencia o ID da proposição                                               |
+## Acesso aos Serviços
 
-## 🥇 Diferenciais:
+- **Dagster**: Acesse a interface do Dagster em `http://localhost:3000`.
+- **pgAdmin**: Acesse o pgAdmin em `http://localhost:2000`.
 
-- Uso de Docker Compose para orquestração de múltiplos containers.
-- Documentação clara do processo de configuração e execução do pipeline.
-- Implementação de testes para validar a integridade dos dados.
-- Evitar a inserção de dados duplicados no banco.
-- Script de ingestão diária dos dados (atualizados).
-
-## 🗳️ Instruções de Submissão:
-
-1. Faça um fork deste repositório para sua conta pessoal do GitHub.
-2. Commit e push suas mudanças para o seu fork.
-3. Envie um e-mail para [brenno.natal@khipo.com.br] com o link do repositório.
-
-## 🧪 Avaliação:
-
-- Estrutura do código e organização.
-- Uso adequado das ferramentas e tecnologias.
-- Implementação dos requisitos do projeto.
-- Otimização de performance.
-
-Boa sorte com o desafio! Estamos ansiosos para ver sua solução.
+Se você tiver dúvidas ou precisar de ajuda, fique à vontade para criar uma Issue neste repositório. 🚀

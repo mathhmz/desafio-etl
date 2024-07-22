@@ -1,0 +1,97 @@
+version: "3.9"
+
+services:
+  dagster_postgresql:
+    image: postgres:11
+    container_name: dagster_postgresql
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    networks:
+      - dagster_network
+
+  desafio_etl:
+    image: desafio_etl
+    restart: always
+    environment:
+      DAGSTER_POSTGRES_USER: ${POSTGRES_USER}
+      DAGSTER_POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      DAGSTER_POSTGRES_DB: ${POSTGRES_DB}
+      DAGSTER_CURRENT_IMAGE: "desafio_etl"
+    networks:
+      - dagster_network
+    volumes:
+      - ${DAGSTER_HOME}:/tmp/dagster-data
+
+  dagster_webserver:
+    image: dagster
+    entrypoint:
+      - dagster-webserver
+      - -h
+      - "0.0.0.0"
+      - -p
+      - "3000"
+      - -w
+      - workspace.yaml
+    container_name: dagster_webserver
+    expose:
+      - "3000"
+    ports:
+      - "3000:3000"
+    environment:
+      DAGSTER_POSTGRES_USER: ${POSTGRES_USER}
+      DAGSTER_POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      DAGSTER_POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /tmp/io_manager_storage:/tmp/io_manager_storage
+    networks:
+      - dagster_network
+    depends_on:
+      - dagster_postgresql
+      - desafio_etl
+
+  dagster_daemon:
+    image: dagster
+    entrypoint:
+      - dagster-daemon
+      - run
+    container_name: dagster_daemon
+    restart: on-failure
+    environment:
+      DAGSTER_POSTGRES_USER: ${POSTGRES_USER}
+      DAGSTER_POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      DAGSTER_POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /tmp/io_manager_storage:/tmp/io_manager_storage
+    networks:
+      - dagster_network
+    depends_on:
+      - dagster_postgresql
+      - desafio_etl
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin
+    expose:
+      - "2000"
+    ports:
+      - "2000:2000"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
+      PGADMIN_LISTEN_ADDRESS: ${PGADMIN_LISTEN_ADDRESS}
+      PGADMIN_LISTEN_PORT: ${PGADMIN_LISTEN_PORT}
+    networks:
+      - dagster_network
+    depends_on:
+      - dagster_postgresql
+
+networks:
+  dagster_network:
+    driver: bridge
+    name: dagster_network
