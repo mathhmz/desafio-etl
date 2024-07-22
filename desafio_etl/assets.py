@@ -9,39 +9,32 @@ import io
 @asset(io_manager_key="io_manager")
 def proposicoes_raw(context: AssetExecutionContext) -> Output:
     """
-    Obtém dados brutos de proposições e retorna em formato JSON.
-
-    Args:
-        context (AssetExecutionContext): O contexto da execução do asset.
-
-    Returns:
-        Output: Dados brutos de proposições em formato JSON.
+    Coleta dados brutos de proposições e os retorna como JSON.
     """
+    context.log.info("Iniciando a coleta de dados brutos de proposições.")
+    
     service_request = ProposicoesService()
     data = service_request()
     raw = json.dumps(data, indent=2)
-
+    
+    context.log.info(f"Dados brutos coletados: {len(data)} itens.")
+    
     return Output(value=raw, metadata={
         "num_rows": len(data)
     })
-    
+
 @asset
 def proposicoes_bronze(context: AssetExecutionContext, proposicoes_raw: str) -> Output:
     """
-    Processa dados brutos de proposições e transforma em um DataFrame.
-
-    Args:
-        context (AssetExecutionContext): O contexto da execução do asset.
-        proposicoes_raw (str): Dados brutos de proposições em formato JSON.
-
-    Returns:
-        Output: Dados de proposições processados em formato JSON.
+    Processa os dados brutos de proposições e os converte em formato de DataFrame.
     """
+    context.log.info("Iniciando o processamento dos dados brutos de proposições.")
+    
     data = json.loads(proposicoes_raw)
     lista_itens = [item['resultado']['listaItem'] for item in data if 'resultado' in item and 'listaItem' in item['resultado']]
-
+    
     columns = {
-        "index": "id",
+        "index" : "id",
         "numero": "number",
         "autor": "author",
         "ano": "year",
@@ -50,46 +43,48 @@ def proposicoes_bronze(context: AssetExecutionContext, proposicoes_raw: str) -> 
         "regime": "regime",
         "situacao": "situation",
         "siglaTipoProjeto": "propositionType",
-        "listaHistoricoTramitacoes": "listaHistoricoTramitacoes"
+        "listaHistoricoTramitacoes" : "listaHistoricoTramitacoes"
     }
-
+    
     lista_itens_filtrada = [{k: v for k, v in item.items() if k in columns} for items in lista_itens for item in items]
-    df = pd.DataFrame(lista_itens_filtrada).rename(columns=columns)
+    df = pd.DataFrame(lista_itens_filtrada)
     df = df.reset_index()
+    df = df.rename(columns=columns)
     df['id'] = df['id'].astype(int) + 1
-
-    context.log.info(df.info(verbose=True))
+    
+    context.log.info(f"Dados processados para proposicoes_bronze: {len(df)} itens.")
+    context.log.info(f"Preview dos dados processados:\n{df.head(10).to_markdown()}")
     
     raw = json.dumps(df.to_dict(orient="records"), indent=2)
-
+    
     return Output(value=raw, metadata={
         "num_rows": len(df),
         "preview": MetadataValue.md(df.head(10).to_markdown())
     })
-    
+
 @asset
 def tramitacoes_bronze(context: AssetExecutionContext, proposicoes_bronze: str) -> Output:
     """
-    Extrai e processa dados de tramitações a partir das proposições.
-
-    Args:
-        context (AssetExecutionContext): O contexto da execução do asset.
-        proposicoes_bronze (str): Dados de proposições processados em formato JSON.
-
-    Returns:
-        Output: Dados de tramitações em formato JSON.
+    Extrai e processa os dados de tramitações a partir dos dados de proposições.
     """
+    context.log.info("Iniciando o processamento dos dados de tramitações.")
+    
     proposicoes_json = json.loads(proposicoes_bronze)
     
-    data = [{
-        'createdAt': tramitacao.get('data', ''),
-        'description': tramitacao.get('historico', ''),
-        'local': tramitacao.get('local', ''),
-        'propositionId': item.get('id', '')
-    } for item in proposicoes_json if 'listaHistoricoTramitacoes' in item
-        for tramitacao in item['listaHistoricoTramitacoes']]
-
+    data = []
+    for item in proposicoes_json:
+        if 'listaHistoricoTramitacoes' in item:
+            for tramitacao in item['listaHistoricoTramitacoes']:
+                data.append({
+                    'createdAt': tramitacao.get('data', ''),
+                    'description': tramitacao.get('historico', ''),
+                    'local': tramitacao.get('local', ''),
+                    'propositionId': item.get('id', '')
+                })
+    
+    context.log.info(f"Dados processados para tramitacoes_bronze: {len(data)} itens.")
     raw = json.dumps(data, indent=2)
+    
     return Output(value=raw, metadata={
         "num_rows": len(data),
     })
@@ -97,15 +92,10 @@ def tramitacoes_bronze(context: AssetExecutionContext, proposicoes_bronze: str) 
 @asset(io_manager_key="io_manager")
 def tramitacoes_digest(context: AssetExecutionContext, tramitacoes_bronze: str) -> Output:
     """
-    Processa os dados brutos de tramitações e retorna em formato Parquet.
-
-    Args:
-        context (AssetExecutionContext): O contexto da execução do asset.
-        tramitacoes_bronze (str): Dados brutos de tramitações em formato JSON.
-
-    Returns:
-        Output: Dados de tramitações processados em formato Parquet.
+    Processa os dados brutos de tramitações em um DataFrame e retorna em formato Parquet.
     """
+    context.log.info("Iniciando o processamento dos dados de tramitações para formato Parquet.")
+    
     data = json.loads(tramitacoes_bronze)
     columns = {
         "data": "createdAt",
@@ -114,29 +104,28 @@ def tramitacoes_digest(context: AssetExecutionContext, tramitacoes_bronze: str) 
     }
     df = pd.DataFrame(data).rename(columns=columns)
     
-    context.log.info(df.info(verbose=True))
-
+    context.log.info(f"Dados processados para tramitacoes_digest: {len(df)} itens.")
+    context.log.info(f"Preview dos dados processados:\n{df.head(10).to_markdown()}")
+    
     return Output(value=df.to_parquet(), metadata={
         "num_rows": len(df),
         "preview": MetadataValue.md(df.head(10).to_markdown())
     })
-    
+
 @asset(io_manager_key="silver_io_manager")
 def tramitacoes_silver(context: AssetExecutionContext, tramitacoes_digest: bytes) -> Output:
     """
     Normaliza e ajusta os dados de tramitações em formato Parquet.
-
-    Args:
-        context (AssetExecutionContext): O contexto da execução do asset.
-        tramitacoes_digest (bytes): Dados de tramitações em formato Parquet.
-
-    Returns:
-        Output: Dados de tramitações normalizados e ajustados.
     """
+    context.log.info("Iniciando a normalização dos dados de tramitações em formato Parquet.")
+    
     pq_file = io.BytesIO(tramitacoes_digest)
     df = pd.read_parquet(pq_file)
     df['createdAt'] = pd.to_datetime(df['createdAt']).dt.strftime('%Y-%m-%dT%H:%M:%SZ')
     df = df_normalizer(df)
+    
+    context.log.info(f"Dados processados para tramitacoes_silver: {len(df)} itens.")
+    context.log.info(f"Preview dos dados normalizados:\n{df.head(10).to_markdown()}")
     
     return Output(value=df, metadata={
         "num_rows": len(df),
@@ -146,18 +135,13 @@ def tramitacoes_silver(context: AssetExecutionContext, tramitacoes_digest: bytes
 @asset(io_manager_key="io_manager")
 def proposicoes_digest(context: AssetExecutionContext, proposicoes_raw: str) -> Output:
     """
-    Processa os dados brutos de proposições e retorna em formato Parquet.
-
-    Args:
-        context (AssetExecutionContext): O contexto da execução do asset.
-        proposicoes_raw (str): Dados brutos de proposições em formato JSON.
-
-    Returns:
-        Output: Dados de proposições processados em formato Parquet.
+    Processa os dados brutos de proposições em um DataFrame e retorna em formato Parquet.
     """
+    context.log.info("Iniciando o processamento dos dados brutos de proposições para formato Parquet.")
+    
     data = json.loads(proposicoes_raw)
     lista_itens = [item['resultado']['listaItem'] for item in data if 'resultado' in item and 'listaItem' in item['resultado']]
-
+    
     columns = {
         "numero": "number",
         "autor": "author",
@@ -168,13 +152,15 @@ def proposicoes_digest(context: AssetExecutionContext, proposicoes_raw: str) -> 
         "situacao": "situation",
         "siglaTipoProjeto": "propositionType",
     }
-
+    
     lista_itens_filtrada = [{k: v for k, v in item.items() if k in columns} for items in lista_itens for item in items]
     df = pd.DataFrame(lista_itens_filtrada).rename(columns=columns)
     df['city'] = 'Belo Horizonte'
     df['state'] = 'Minas Gerais'
-    context.log.info(df.info(verbose=True))
-
+    
+    context.log.info(f"Dados processados para proposicoes_digest: {len(df)} itens.")
+    context.log.info(f"Preview dos dados processados:\n{df.head(10).to_markdown()}")
+    
     return Output(value=df.to_parquet(), metadata={
         "num_rows": len(df),
         "preview": MetadataValue.md(df.head(10).to_markdown())
@@ -184,31 +170,26 @@ def proposicoes_digest(context: AssetExecutionContext, proposicoes_raw: str) -> 
 def proposicoes_silver(context: AssetExecutionContext, proposicoes_digest: bytes) -> Output:
     """
     Normaliza e ajusta os dados de proposições em formato Parquet.
-
-    Args:
-        context (AssetExecutionContext): O contexto da execução do asset.
-        proposicoes_digest (bytes): Dados de proposições em formato Parquet.
-
-    Returns:
-        Output: Dados de proposições normalizados e ajustados.
     """
+    context.log.info("Iniciando a normalização dos dados de proposições em formato Parquet.")
+    
     pq_file = io.BytesIO(proposicoes_digest)
     df = pd.read_parquet(pq_file)
-
+    
     df['presentationDate'] = pd.to_datetime(df['presentationDate']).dt.strftime('%Y-%m-%dT%H:%M:%SZ')
     df['number'] = df['number'].astype(str)
     df['year'] = df['year'].astype(int)
     df['ementa'] = df['ementa'].fillna(value="")
-
-    context.log.info(df.info(verbose=True))
-
+    
+    context.log.info(f"Dados processados para proposicoes_silver: {len(df)} itens.")
+    context.log.info(f"Preview dos dados normalizados:\n{df.head(10).to_markdown()}")
+    
     df = df_normalizer(df)
     
     return Output(value=df, metadata={
         "num_rows": len(df),
         "preview": MetadataValue.md(df.head(10).to_markdown())
     })
-
 
 @asset(checks=[AssetCheckResult(
     name="check_proposicoes_raw",
