@@ -35,8 +35,9 @@ class TramitacaoSchema(Base):
 
 def create_and_update_table(engine, table_name, df):
     
-    Base.metadata.delete(engine, table_name)
-    
+    with engine.connect() as conn: 
+        conn.execute(text(f"DROP TABLE IF EXISTS {table_name} CASCADE"))
+        conn.commit()    
     
     
     Base.metadata.tables['proposicoes_silver'].create(engine, checkfirst=True)
